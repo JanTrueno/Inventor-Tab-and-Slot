@@ -307,14 +307,6 @@ namespace TabSlotAddIn.UI
             BackColor = theme.Back;
         }
 
-        public string Slot;
-        public event Action<string> ChooseIconRequested;
-
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right && Slot != null) ChooseIconRequested?.Invoke(Slot);
-        }
-
         protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); }
         protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); }
         protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }

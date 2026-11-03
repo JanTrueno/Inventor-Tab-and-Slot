@@ -403,8 +403,6 @@ namespace TabSlotAddIn.UI
 
             _editSet = new IconButton(_theme, "Edit the selected tab and slot", ActionIcons.Edit);
             _deleteSet = new IconButton(_theme, "Delete the selected tab and slot", ActionIcons.Delete);
-            _editSet.Slot = "Edit"; _deleteSet.Slot = "Delete";
-            foreach (IconButton b in new[] { _editSet, _deleteSet }) b.ChooseIconRequested += OnChooseIcon;
 
             var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, Margin = Padding.Empty, WrapContents = false };
             foreach (Control b in new Control[] { _editSet, _deleteSet }) { b.Margin = new Padding(0, 6, 4, 0); buttons.Controls.Add(b); }
@@ -464,14 +462,6 @@ namespace TabSlotAddIn.UI
 
         // ----- behaviour ----------------------------------------------------------------------------------------
 
-        private void OnChooseIcon(string slot)
-        {
-            string command = IconPicker.Choose(IconChoices.Command(slot));
-            if (command == null) return;
-            IconChoices.Set(slot, command);
-            Invalidate(true);   // every icon looks its choice up again when it paints
-        }
-
         private void WireEvents()
         {
             _pickTab.Clicked += () => PickClicked?.Invoke(_pickTab.Active ? PickTarget.None : PickTarget.Tab);
@@ -501,8 +491,6 @@ namespace TabSlotAddIn.UI
             };
             _spacing.SelectedIndexChanged += (s, e) => { UpdateVisibility(); Changed(); };
             _walls.SelectedIndexChanged += (s, e) => Changed();
-            _spacing.Slots = new[] { "SpacingEqual", "SpacingPitch" };
-            _spacing.ChooseIconRequested += OnChooseIcon;
             _list.SelectedIndexChanged += (s, e) => UpdateListButtons();
             _list.DoubleClick += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
             _editSet.Click += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };

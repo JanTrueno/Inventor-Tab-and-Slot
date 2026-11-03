@@ -60,37 +60,6 @@ namespace TabSlotAddIn.UI
             return Read(def, property);
         }
 
-        /// <summary>Every button on Inventor's ribbons that has a readable large icon, sorted by display name.</summary>
-        public static List<(string Name, string Display, Bitmap Icon)> RibbonCommands()
-        {
-            var list = new List<(string, string, Bitmap)>();
-            if (_app == null) return list;
-            var seen = new HashSet<string>();
-            try
-            {
-                foreach (Ribbon ribbon in _app.UserInterfaceManager.Ribbons)
-                    foreach (RibbonTab tab in ribbon.RibbonTabs)
-                        foreach (RibbonPanel panel in tab.RibbonPanels)
-                            foreach (CommandControl cc in panel.CommandControls)
-                            {
-                                try
-                                {
-                                    ControlDefinition d = cc.ControlDefinition;
-                                    string name = d.InternalName;
-                                    if (!seen.Add(name)) continue;
-                                    Bitmap icon = Get(name, true);
-                                    if (icon == null) continue;
-                                    string display = (d.DisplayName ?? name).Replace("&", "");
-                                    list.Add((name, display.Length == 0 ? name : display, icon));
-                                }
-                                catch { /* separator or control without a definition */ }
-                            }
-            }
-            catch (Exception ex) { Log.Write("Listing ribbon commands failed: " + ex.Message); }
-            list.Sort((a, b) => string.Compare(a.Item2, b.Item2, StringComparison.CurrentCultureIgnoreCase));
-            return list;
-        }
-
         private static object Read(ControlDefinition def, string property)
         {
             if (def == null) return null;

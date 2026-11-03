@@ -85,20 +85,10 @@ namespace TabSlotAddIn.UI
             Invalidate();
         }
 
-        /// <summary>One slot name per button (same order); right-clicking a button asks to choose its icon.</summary>
-        public string[] Slots;
-        public event Action<string> ChooseIconRequested;
-
         protected override void OnMouseDown(MouseEventArgs e)
         {
             int h = HitTest(e.Location);
-            if (h < 0) return;
-            if (e.Button == MouseButtons.Right)
-            {
-                if (Slots != null && h < Slots.Length) ChooseIconRequested?.Invoke(Slots[h]);
-                return;
-            }
-            if (e.Button != MouseButtons.Left) return;
+            if (h < 0 || e.Button != MouseButtons.Left) return;
             SelectedIndex = h;
         }
 

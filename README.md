@@ -83,8 +83,6 @@ Start Inventor, open an assembly, and click **Assemble → Tab and Slot**.
 
 Existing sets are listed under **Existing Tab and Slots**, where you can edit or delete them.
 
-Right-click a toggle icon or an Edit/Delete icon to choose a different Inventor icon for it.
-
 A log is written to `%LOCALAPPDATA%\TabSlotAddIn\log.txt`.
 
 ## License
