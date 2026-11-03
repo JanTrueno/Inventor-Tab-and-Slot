@@ -3,6 +3,14 @@
 Small Autodesk Inventor add-in that makes tabs on one part and matching slots in another, right inside an assembly.
 It adds a **Tab and Slot** button to the Assemble tab and a dockable panel in Inventor's own style that follows your theme.
 
+**Square tube into tube**: tabs on all four walls, with the height set to the wall thickness.
+
+![Tabs on a square tube going into another tube](docs/images/tube.png)
+
+**Sheet metal**: tabs along a sheet edge, slotted into the plate below.
+
+![Tabs along a sheet metal edge with slots in the plate](docs/images/sheet-metal.png)
+
 ## Features
 
 - **One panel for everything**: create new tab and slot sets, and edit or delete existing ones.
