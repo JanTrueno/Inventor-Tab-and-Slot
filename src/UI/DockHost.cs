@@ -33,6 +33,22 @@ namespace TabSlotAddIn.UI
             _window.AddChild(_host.Handle.ToInt32());
             _window.DockingState = DockingStateEnum.kDockLeft;
             _window.Visible = false;
+
+            // the tab's cross still hides the window even with the close button disabled: treat it as Cancel
+            _events = app.UserInterfaceManager.DockableWindows.Events;
+            _events.OnHide += OnHide;
+        }
+
+        private static DockableWindowsEvents _events;
+        private static bool _hiding;
+
+        private static void OnHide(DockableWindow window, EventTimingEnum before, NameValueMap context, out HandlingCodeEnum handling)
+        {
+            handling = HandlingCodeEnum.kEventNotHandled;
+            if (_hiding || before != EventTimingEnum.kAfter || !TabSlotCommand.IsRunning) return;
+            try { if (window.InternalName != WindowName) return; } catch { return; }
+            // finish outside Inventor's event so the command's own clean-up can touch the window again
+            _host?.BeginInvoke(new Action(TabSlotCommand.CancelActive));
         }
 
         public static void Show(TabSlotPanel panel, string title)
@@ -47,13 +63,17 @@ namespace TabSlotAddIn.UI
 
         public static void Hide(TabSlotPanel panel)
         {
+            _hiding = true;
             try { if (_window != null) _window.Visible = false; } catch { }
+            finally { _hiding = false; }
             try { _host?.Controls.Remove(panel); } catch { }
             try { panel?.Dispose(); } catch { }
         }
 
         public static void Shutdown()
         {
+            try { if (_events != null) _events.OnHide -= OnHide; } catch { }
+            _events = null;
             try { _window?.Delete(); } catch { }
             try { _host?.Dispose(); } catch { }
             _window = null;
