@@ -1,0 +1,15 @@
+<Addin Type="Standard">
+  <ClassId>{b3d4f1a8-6c27-4e59-9a0d-2f81c7e5a346}</ClassId>
+  <ClientId>{b3d4f1a8-6c27-4e59-9a0d-2f81c7e5a346}</ClientId>
+  <DisplayName>Tab and Slot Manager</DisplayName>
+  <Description>Create, edit and delete tabs and matching slots in assemblies.</Description>
+  <Assembly>TabSlotAddIn.dll</Assembly>
+  <LoadOnStartUp>1</LoadOnStartUp>
+  <UserUnloadable>1</UserUnloadable>
+  <Hidden>0</Hidden>
+  <SupportedSoftwareVersionGreaterThan>28..</SupportedSoftwareVersionGreaterThan>
+  <SupportedSoftwareVersionLessThan>30..</SupportedSoftwareVersionLessThan>
+  <DataVersion>1</DataVersion>
+  <UserInterfaceVersion>1</UserInterfaceVersion>
+  <LoadBehavior>1</LoadBehavior>
+</Addin>
