@@ -47,6 +47,21 @@ The output goes to `bin\Release\net8.0-windows\`: `TabSlotAddIn.dll`, `.pdb` and
 
 ## Install
 
+The easiest way is the installer: download `TabSlot-Setup-<version>.exe` from [Releases](https://github.com/JanTrueno/Inventor-Tab-and-Slot/releases) and run it.
+It installs for the current user without admin rights, and you can uninstall it from Windows **Settings → Apps**.
+
+### Building the installer
+
+You need [Inno Setup 6](https://jrsoftware.org/isinfo.php). Install it with `winget install JRSoftware.InnoSetup`, then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-installer.ps1
+```
+
+This builds the add-in and writes `dist\TabSlot-Setup-<version>.exe`. The version comes from `deploy\PackageContents.xml`, or you can pass `-Version 1.2.0`.
+
+### Installing from source
+
 Close Inventor (it locks the add-in DLL while running), then run:
 
 ```powershell
