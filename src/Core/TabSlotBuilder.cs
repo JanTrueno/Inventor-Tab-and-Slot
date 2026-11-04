@@ -257,8 +257,9 @@ namespace TabSlotAddIn.Core
             {
                 Profile profile = sketch.Profiles.AddForSolid(true);
                 CutDefinition cd = ((SheetMetalFeatures)def.Features).CutFeatures.CreateCutDefinition(profile);
-                // Symmetric through-all removes the sheet whichever way the sketch normal points.
-                cd.SetThroughAllExtent(PartFeatureExtentDirectionEnum.kSymmetricExtentDirection);
+                // Symmetric, twice the sheet thickness: removes the sheet whichever way the sketch normal points,
+                // without reaching the opposite flange of a channel or box.
+                cd.SetDistanceExtent(2 * slot.DepthIntoBody() + 0.02, PartFeatureExtentDirectionEnum.kSymmetricExtentDirection);
                 CutFeature feature = ((SheetMetalFeatures)def.Features).CutFeatures.Add(cd);
                 Label(feature, p.Name + " - Slot", p.Id, RoleSlot);
                 try { sketch.Name = p.Name + " - Slot Sketch"; } catch { }
@@ -630,7 +631,7 @@ namespace TabSlotAddIn.Core
                 {
                     var def = (SheetMetalComponentDefinition)owner.PartDef;
                     CutDefinition cd = ((SheetMetalFeatures)def.Features).CutFeatures.CreateCutDefinition(profile);
-                    cd.SetThroughAllExtent(PartFeatureExtentDirectionEnum.kSymmetricExtentDirection);
+                    cd.SetDistanceExtent(2 * depth + 0.02, PartFeatureExtentDirectionEnum.kSymmetricExtentDirection);
                     Label(((SheetMetalFeatures)def.Features).CutFeatures.Add(cd), name, p.Id, role);
                 }
                 else
