@@ -29,8 +29,7 @@ namespace TabSlotAddIn.UI
         private static Bitmap DrawTabSlot(int size)
         {
             Bitmap bmp = NewCanvas(size, out Graphics g, out float s);
-            // Shaded isometric view in the style of Inventor's feature icons: a grey plate with a slot,
-            // and a blue tab standing in it. Light from the top left: top face lightest, right face darkest.
+            // Flat front view in the style of Inventor's feature icons, shaded top to bottom like Engrave's plate edge.
             using (g)
             using (var outline = new Pen(Color.FromArgb(60, 68, 82), Math.Max(1f, s * 0.8f)))
             {
@@ -46,18 +45,11 @@ namespace TabSlotAddIn.UI
                     g.DrawPolygon(outline, pts);
                 }
 
-                // plate (slab): top, left and right faces
-                Face(Color.FromArgb(214, 221, 232), Color.FromArgb(176, 186, 201), P(2, 18), P(16, 12), P(30, 18), P(16, 24));
-                Face(Color.FromArgb(150, 160, 176), Color.FromArgb(120, 130, 146), P(2, 18), P(16, 24), P(16, 28), P(2, 22));
-                Face(Color.FromArgb(112, 122, 138), Color.FromArgb(84, 93, 108), P(16, 24), P(30, 18), P(30, 22), P(16, 28));
-
-                // slot cut into the top face
-                Face(Color.FromArgb(70, 78, 92), Color.FromArgb(40, 46, 58), P(11, 18), P(16, 15.8f), P(21, 18), P(16, 20.2f));
-
-                // tab standing in the slot: left, right, top
-                Face(Color.FromArgb(70, 168, 236), Color.FromArgb(20, 120, 205), P(12.5f, 9), P(16, 10.8f), P(16, 20), P(12.5f, 18.2f));
-                Face(Color.FromArgb(16, 112, 196), Color.FromArgb(8, 82, 160), P(16, 10.8f), P(19.5f, 9), P(19.5f, 18.2f), P(16, 20));
-                Face(Color.FromArgb(150, 214, 250), Color.FromArgb(110, 190, 242), P(12.5f, 9), P(16, 7.2f), P(19.5f, 9), P(16, 10.8f));
+                // front view: a grey plate with a slot cut into its top, and a blue plate above whose tab sits in the slot
+                Face(Color.FromArgb(150, 160, 176), Color.FromArgb(84, 93, 108),
+                    P(1, 19), P(10.5f, 19), P(10.5f, 25), P(21.5f, 25), P(21.5f, 19), P(31, 19), P(31, 28), P(1, 28));
+                Face(Color.FromArgb(70, 168, 236), Color.FromArgb(8, 82, 160),
+                    P(1, 6), P(31, 6), P(31, 14), P(20, 14), P(20, 24), P(12, 24), P(12, 14), P(1, 14));
             }
             return bmp;
         }
