@@ -23,6 +23,8 @@
     <Compile Include="src\**\*.cs" />
     <!-- Autodesk Weave icons (Apache-2.0), pre-rendered; see THIRD-PARTY-NOTICES.txt -->
     <EmbeddedResource Include="src\Assets\Weave\*.png" LogicalName="TabSlotAddIn.Weave.%(Filename)%(Extension)" />
+    <!-- the ribbon icon, in several sizes -->
+    <EmbeddedResource Include="src\Assets\Icon\*.png" LogicalName="TabSlotAddIn.Icon.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
