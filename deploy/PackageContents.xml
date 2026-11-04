@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Inventor" Name="Tab and Slot Manager" Description="Create, edit and delete tabs and matching slots in Inventor assemblies" AppVersion="1.0.1" FriendlyVersion="1.0.1" ProductType="Application" SupportedLocales="Enu" AppNameSpace="local.tabslotmanager" Author="Local" ProductCode="{5a2f7c1e-93b4-4d08-8e6a-1c4b7d9f2a60}" UpgradeCode="{e8c41b7a-2d56-4f93-a0b1-7f3d5c9e6b12}">
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Inventor" Name="Tab and Slot Manager" Description="Create, edit and delete tabs and matching slots in Inventor assemblies" AppVersion="1.0.2" FriendlyVersion="1.0.2" ProductType="Application" SupportedLocales="Enu" AppNameSpace="local.tabslotmanager" Author="Local" ProductCode="{5a2f7c1e-93b4-4d08-8e6a-1c4b7d9f2a60}" UpgradeCode="{e8c41b7a-2d56-4f93-a0b1-7f3d5c9e6b12}">
   <CompanyDetails Name="Local" />
   <RuntimeRequirements />
   <Components Description="Tab and Slot Manager for Inventor 2025">
