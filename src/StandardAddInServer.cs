@@ -34,8 +34,7 @@ namespace TabSlotAddIn
                 "Tab and Slot", "TabSlotAddIn.Create", CommandTypesEnum.kNonShapeEditCmdType, clientGuid,
                 "Create, edit and delete tabs and matching slots",
                 "Tab and Slot\nCreates tabs on the edge of one part with matching slots in another part, and lists the existing ones for editing or deleting.",
-                UI.InventorCommandIcons.Picture(UI.IconChoices.Command("Ribbon"), false) ?? Icons.CreateTabSlot(16),
-                UI.InventorCommandIcons.Picture(UI.IconChoices.Command("Ribbon"), true) ?? Icons.CreateTabSlot(32),
+                Icons.CreateTabSlot(16), Icons.CreateTabSlot(32),
                 ButtonDisplayEnum.kDisplayTextInLearningMode);
             _button.OnExecute += OnExecute;
 
