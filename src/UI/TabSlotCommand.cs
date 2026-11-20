@@ -18,8 +18,8 @@ namespace TabSlotAddIn.UI
         private readonly AssemblyDocument _doc;
         private readonly Units _units;
         private readonly InventorWindow _owner;
-        private readonly bool _editing;
-        private readonly TabSlotParams _original;   // as stored, edit mode only
+        private bool _editing;
+        private TabSlotParams _original;   // as stored, edit mode only
         private TabSlotParams _p;
 
         private TabSlotPanel _panel;
@@ -28,6 +28,7 @@ namespace TabSlotAddIn.UI
         private PreviewGraphics _preview;
         private int _copyCount;   // other copies of the tab part the preview found a slot face for
         private HighlightSet _hiTab, _hiSlot, _hiTabPart, _hiSlotPart;
+        private HighlightSet _hiSetTabs, _hiSetSlots;   // the existing set selected in the list
 
         private FaceProxy _tabProxy, _slotProxy;
         private FaceProxy _tabPicked;          // what the user clicked; _tabProxy is the end face actually used
@@ -115,6 +116,7 @@ namespace TabSlotAddIn.UI
             _panel.ClearRequested += OnClearPick;
             _panel.EditRequested += OnEditSet;
             _panel.DeleteRequested += OnDeleteSet;
+            _panel.SetSelected += ShowSet;
 
             StartInteraction();
             RefreshFaceTexts();
@@ -211,17 +213,86 @@ namespace TabSlotAddIn.UI
             return null;
         }
 
-        /// <summary>Closes this command and reopens the panel on the chosen set (deferred so the panel is not disposed from its own click).</summary>
+        /// <summary>Highlights the features of the set selected in the list: tabs and reliefs green, slots red, on every copy.</summary>
+        private void ShowSet(string id)
+        {
+            try
+            {
+                _hiSetTabs.Clear();
+                _hiSetSlots.Clear();
+                TabSlotParams set = id == null || _editing ? null : FindSet(id);
+                if (set != null)
+                {
+                    var occurrences = new List<ComponentOccurrence>();
+                    foreach (ComponentOccurrence o in _doc.ComponentDefinition.Occurrences.AllLeafOccurrences) occurrences.Add(o);
+                    foreach (var entry in TabSlotBuilder.AllFeatures(_doc, set))
+                    {
+                        bool isTab = string.Equals(entry.Key.FullDocumentName, set.TabPartFile, StringComparison.OrdinalIgnoreCase);
+                        HighlightSet hi = isTab ? _hiSetTabs : _hiSetSlots;
+                        foreach (ComponentOccurrence occ in occurrences)
+                        {
+                            try
+                            {
+                                if (occ.Suppressed || !(occ.Definition is PartComponentDefinition d) ||
+                                    !string.Equals(((Document)d.Document).FullDocumentName, entry.Key.FullDocumentName, StringComparison.OrdinalIgnoreCase)) continue;
+                                foreach (Face f in entry.Value.Faces)
+                                {
+                                    occ.CreateGeometryProxy(f, out object proxy);
+                                    hi.AddItem(proxy);
+                                }
+                            }
+                            catch { /* feature without faces (suppressed or failed) */ }
+                        }
+                    }
+                }
+                _app.ActiveView.Update();
+            }
+            catch (Exception ex) { Log.Write("Show set failed: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// Switches the open panel to editing the chosen set: its features are suppressed so the original faces are whole,
+        /// and the faces and values are loaded, without closing and restarting the command.
+        /// </summary>
         private void OnEditSet(string id)
         {
             TabSlotParams set = FindSet(id);
             if (set == null) return;
+            if (TabSlotBuilder.GetHealth(_doc, set) == FeatureHealth.PartNotLoaded)
+            {
+                MessageBox.Show(_owner, "The parts of this tab and slot are not loaded. Open them (or load the assembly fully) and try again.",
+                                "Tab and Slot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             _panel.BeginInvoke(new Action(() =>
             {
-                Finish(false);
-                TabSlotCommand cmd = Start(_app, _doc, set, out string error);
-                if (cmd == null && error != null)
-                    MessageBox.Show(_owner, error, "Tab and Slot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                try
+                {
+                    ShowSet(null);
+                    _preview.Clear();
+                    _editing = true;
+                    _original = set;
+                    _p = set.Clone();
+                    TabSlotBuilder.SetSuppressed(_doc, _original, true);
+                    _tabProxy = TabSlotStore.ResolveFace(_doc, _original, _original.TabFaceKey);
+                    _tabPicked = _tabProxy;
+                    _tabNeedsResolve = false;
+                    _slotProxy = TabSlotStore.ResolveFace(_doc, _original, _original.SlotFaceKey);
+                    _panel.ShowName(_p.Name);
+                    _panel.LoadParams(_p);
+                    RebuildFaceInfo(PickTarget.Tab);
+                    RebuildFaceInfo(PickTarget.Slot);
+                    _panel.SetListEnabled(false);
+                    DockHost.SetTitle("Edit Tab and Slot");
+                    RefreshFaceTexts();
+                    AdvanceTarget();
+                    Recompute();
+                }
+                catch (Exception ex)
+                {
+                    Log.Write("Edit failed: " + ex);
+                    MessageBox.Show(_owner, "Could not edit the tab and slot:\n\n" + ex.Message, "Tab and Slot", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }));
         }
 
@@ -272,6 +343,10 @@ namespace TabSlotAddIn.UI
             _hiTab.Color = _app.TransientObjects.CreateColor(0, 235, 255);
             _hiSlot = _doc.CreateHighlightSet();
             _hiSlot.Color = _app.TransientObjects.CreateColor(255, 235, 0);
+            _hiSetTabs = _doc.CreateHighlightSet();
+            _hiSetTabs.Color = _app.TransientObjects.CreateColor(30, 190, 80);
+            _hiSetSlots = _doc.CreateHighlightSet();
+            _hiSetSlots.Color = _app.TransientObjects.CreateColor(220, 60, 50);
 
             _events = _app.CommandManager.CreateInteractionEvents();
             _events.InteractionDisabled = false;
@@ -691,6 +766,8 @@ namespace TabSlotAddIn.UI
             try { _hiSlotPart?.Delete(); } catch { }
             try { _hiTab?.Delete(); } catch { }
             try { _hiSlot?.Delete(); } catch { }
+            try { _hiSetTabs?.Delete(); } catch { }
+            try { _hiSetSlots?.Delete(); } catch { }
 
             if (_editing && !_committed)
             {

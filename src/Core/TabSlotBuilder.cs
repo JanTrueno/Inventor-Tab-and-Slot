@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Inventor;
 
@@ -569,7 +569,7 @@ namespace TabSlotAddIn.Core
         // ----- suppress / delete ----------------------------------------------------------------------------------
 
         /// <summary>Every feature of a set, in the order they must be removed: tab-part reliefs, tab features, slot features.</summary>
-        private static List<KeyValuePair<PartDocument, PartFeature>> AllFeatures(AssemblyDocument asm, TabSlotParams p)
+        public static List<KeyValuePair<PartDocument, PartFeature>> AllFeatures(AssemblyDocument asm, TabSlotParams p)
         {
             var list = new List<KeyValuePair<PartDocument, PartFeature>>();
             if (FindDocument(asm, p.TabPartFile) is PartDocument tabDoc)

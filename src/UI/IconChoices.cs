@@ -11,6 +11,8 @@ namespace TabSlotAddIn.UI
                 case "SpacingEqual": return "PartRectangularPatternCmd";
                 case "SpacingPitch": return "SketchGeneralDimensionCmd";
                 case "Edit": return "PartDirectCmd";
+                case "CopyOne": return "AssemblyPlaceComponentCmd";
+                case "CopyAll": return "AssemblyPatternComponentCmd";
                 default: return "";
             }
         }

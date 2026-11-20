@@ -61,6 +61,11 @@ namespace TabSlotAddIn.UI
             _window.Visible = true;
         }
 
+        public static void SetTitle(string title)
+        {
+            try { if (_window != null) _window.Title = title; } catch { /* cosmetic */ }
+        }
+
         public static void Hide(TabSlotPanel panel)
         {
             _hiding = true;

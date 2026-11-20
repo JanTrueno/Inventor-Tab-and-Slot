@@ -67,6 +67,7 @@ namespace TabSlotAddIn.UI
         public event Action CancelClicked;
         public event Action<string> EditRequested;
         public event Action<string> DeleteRequested;
+        public event Action<string> SetSelected;   // id of the set selected in the list, or null
 
         public TabSlotPanel(Units units, Theme theme)
         {
@@ -85,7 +86,7 @@ namespace TabSlotAddIn.UI
             _count = new FieldBox(theme); _count.AsInteger(1, 99); _count.IntValue = 1;
             _spacing = new IconToggleGroup(theme, ("Equal spacing", ToggleIcons.Cmd("SpacingEqual", ToggleIcons.EqualSpacing)), ("Fixed pitch", ToggleIcons.Cmd("SpacingPitch", ToggleIcons.FixedPitch)));
             _walls = new IconToggleGroup(theme, ("All four walls", ToggleIcons.TubeAll), ("Two walls", ToggleIcons.TubePairA), ("Two walls, turned 90°", ToggleIcons.TubePairB));
-            _copies = new IconToggleGroup(theme, ("Slot for the picked tab only", ToggleIcons.CopyOne), ("Slots for every copy of the tab part", ToggleIcons.CopyAll));
+            _copies = new IconToggleGroup(theme, ("Slot for the picked tab only", ToggleIcons.Cmd("CopyOne", ToggleIcons.CopyOne)), ("Slots for every copy of the tab part", ToggleIcons.Cmd("CopyAll", ToggleIcons.CopyAll)));
             _clearance = new FieldBox(theme); _reliefRadius = new FieldBox(theme);
             _ok = new InventorButton(theme, "OK", true);
             _cancel = new InventorButton(theme, "Cancel", false);
@@ -496,7 +497,7 @@ namespace TabSlotAddIn.UI
             _spacing.SelectedIndexChanged += (s, e) => { UpdateVisibility(); Changed(); };
             _walls.SelectedIndexChanged += (s, e) => Changed();
             _copies.SelectedIndexChanged += (s, e) => Changed();
-            _list.SelectedIndexChanged += (s, e) => UpdateListButtons();
+            _list.SelectedIndexChanged += (s, e) => { UpdateListButtons(); SetSelected?.Invoke(SelectedId()); };
             _list.DoubleClick += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
             _editSet.Click += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
             _deleteSet.Click += (s, e) => { string id = SelectedId(); if (id != null) DeleteRequested?.Invoke(id); };
