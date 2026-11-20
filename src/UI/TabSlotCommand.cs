@@ -411,11 +411,12 @@ namespace TabSlotAddIn.UI
             try
             {
                 _select.Enabled = target != PickTarget.None;
+                Log.Write("Picking " + target);
                 _events.StatusBarText = target == PickTarget.Tab ? "Select the face the tab grows from"
                                       : target == PickTarget.Slot ? "Select the face the slot is cut into"
                                       : "Tab and Slot";
             }
-            catch { /* events already stopped */ }
+            catch (Exception ex) { Log.Write("Set picker failed: " + ex.Message); }
         }
 
         private void AdvanceTarget()
@@ -428,6 +429,7 @@ namespace TabSlotAddIn.UI
         private void OnSelect(ObjectsEnumerator justSelected, SelectionDeviceEnum device, Point modelPosition,
                               Point2d viewPosition, Inventor.View view)
         {
+            Log.Write($"Select: target={_target} count={justSelected.Count} finished={_finished}");
             if (_finished || _target == PickTarget.None || justSelected.Count == 0) return;
             try
             {
@@ -480,6 +482,7 @@ namespace TabSlotAddIn.UI
             }
             catch (Exception ex)
             {
+                Log.Write("Select failed: " + ex);
                 _panel.SetStatus("Could not use that selection: " + ex.Message, true);
             }
         }
@@ -727,7 +730,8 @@ namespace TabSlotAddIn.UI
                 if (picked == null) return;
 
                 FaceProxy end = _tabPicked;
-                if (!EndFaceFinder.PointsAtSlot(picked, _slot))
+                // an edge or a tube ring was picked deliberately as the tab: keep it
+                if (!_tabFromEdge && !EndFaceFinder.PointsAtSlot(picked, _slot))
                 {
                     FaceProxy found = EndFaceFinder.Find(_tabPicked, _slot);
                     if (found != null) end = found;

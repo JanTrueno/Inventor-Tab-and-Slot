@@ -12,10 +12,18 @@ namespace TabSlotAddIn.Core
     {
         private const int MaxDepth = 2;
 
-        /// <summary>True when the face is parallel to the slot face and the slot plane lies in front of it.</summary>
-        public static bool PointsAtSlot(FaceInfo face, FaceInfo slot) =>
-            Math.Abs(face.Normal.Dot(slot.Normal)) >= Plan.ParallelTolerance &&
-            (slot.Origin - face.Origin).Dot(face.Normal) >= -0.05;
+        /// <summary>
+        /// True when tabs on the face would run into the slot face: a square-cut end parallel to it with the slot plane in
+        /// front, or a mitered end whose tabs cross it.
+        /// </summary>
+        public static bool PointsAtSlot(FaceInfo face, FaceInfo slot)
+        {
+            if (Math.Abs(face.Normal.Dot(slot.Normal)) >= Plan.ParallelTolerance)
+                return (slot.Origin - face.Origin).Dot(face.Normal) >= -0.05;
+            foreach (FaceInfo.Strip s in face.Strips)
+                if (s.Mitered && Math.Abs(s.Dir.Dot(slot.Normal)) > 0.17) return true;
+            return false;
+        }
 
         /// <summary>Returns the neighbouring planar face (within two steps) parallel to the slot face and facing it, nearest first; null if none.</summary>
         public static FaceProxy Find(FaceProxy start, FaceInfo slot)
