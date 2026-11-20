@@ -40,11 +40,15 @@ namespace TabSlotAddIn.Core
         public double SlotDepth;     // depth to cut when blind
         public double SlotPreviewDepth;
 
-        /// <summary>Footprint of the slot for tab i: the tab outline grown by the clearance and projected onto the slot face plane.</summary>
+        /// <summary>
+        /// Footprint of the slot for tab i: the tab outline grown by the clearance and projected onto the slot face plane.
+        /// Across the tab (its width is the sheet thickness, which is rolled to a tight tolerance) it grows by half as much.
+        /// </summary>
         public Footprint SlotFootprint(int i)
         {
             Footprint t = Tabs[i];
-            V3 o = t.Origin - t.U * Clearance - t.V * Clearance;
+            double across = Clearance / 2;
+            V3 o = t.Origin - t.U * Clearance - t.V * across;
             double along = (o - SlotPlanePoint).Dot(TabDirection);
             return new Footprint
             {
@@ -52,7 +56,7 @@ namespace TabSlotAddIn.Core
                 U = t.U,
                 V = t.V,
                 Length = t.Length + 2 * Clearance,
-                Width = t.Width + 2 * Clearance
+                Width = t.Width + 2 * across
             };
         }
 
