@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Inventor;
 
@@ -35,7 +35,7 @@ namespace TabSlotAddIn.Core
             else
             {
                 bool done = false;
-                if (p.Chamfer)
+                if (p.Chamfer || plan.AnyMitered)   // a mitered end has no face to extrude square from
                 {
                     try { CreateSideProfileTabs(app, p, tab, plan); done = true; }
                     catch (Exception ex)
@@ -43,6 +43,7 @@ namespace TabSlotAddIn.Core
                         // fall back to plain rectangular tabs rather than failing the whole set
                         Log.Write("Chamfered tabs failed, using plain tabs: " + ex.Message);
                         DeleteSetFeatures(tab.PartDef, p.Id, RoleTab);
+                        if (plan.AnyMitered) throw;   // plain tabs would grow square to the miter, the wrong way
                     }
                 }
                 if (!done)
@@ -390,7 +391,7 @@ namespace TabSlotAddIn.Core
             {
                 V3 a = fp.Origin + tab.V * (vb - (fp.Origin - tab.Origin).Dot(tab.V));
                 V3 b = a + fp.U * fp.Length;
-                quads.Add(TabOutline(a, b, plan.TabDirection, plan.TabHeight, p.Chamfer ? p.ChamferSize : 0));
+                quads.Add(TabOutline(a, b, fp.Dir, fp.Height, p.Chamfer ? p.ChamferSize : 0));
             }
 
             var def = (SheetMetalComponentDefinition)tab.PartDef;
@@ -666,7 +667,7 @@ namespace TabSlotAddIn.Core
         /// </summary>
         private static FaceProxy FindOuterPlaneFace(FaceInfo tab, FaceInfo.Strip strip)
         {
-            V3 outward = -strip.V;               // V points from the outer edge into the material
+            V3 outward = -strip.Across;          // Across points from the outer face into the material
             FaceProxy best = null;
             double bestArea = -1;
             foreach (Face f in tab.Proxy.SurfaceBody.Faces)
@@ -728,11 +729,11 @@ namespace TabSlotAddIn.Core
                 foreach (Footprint f in plan.Tabs)
                 {
                     if (f.StripIndex != s) continue;
-                    if (f.Width < strip.Thickness - 1e-6) throw new InvalidOperationException("Chamfered tabs need the full wall width.");
+                    if (f.Width < strip.Wall - 1e-6) throw new InvalidOperationException("Chamfered tabs need the full wall width.");
                     // start 1 mm inside the wall so the new material overlaps the part and joins with it (not just touches an edge)
                     const double overlap = 0.1;
-                    V3 back = plan.TabDirection * overlap;
-                    outlines.Add(TabOutline(f.Origin - back, f.Origin + f.U * f.Length - back, plan.TabDirection, plan.TabHeight + overlap, p.ChamferSize));
+                    V3 back = f.Dir * overlap;
+                    outlines.Add(TabOutline(f.Origin - back, f.Origin + f.U * f.Length - back, f.Dir, f.Height + overlap, p.Chamfer ? p.ChamferSize : 0));
                 }
                 if (outlines.Count == 0) continue;
 
@@ -746,7 +747,7 @@ namespace TabSlotAddIn.Core
                     Profile profile = sketch.Profiles.AddForSolid(true);
                     ExtrudeFeatures extrudes = tab.PartDef.Features.ExtrudeFeatures;
                     ExtrudeDefinition ed = extrudes.CreateExtrudeDefinition(profile, PartFeatureOperationEnum.kJoinOperation);
-                    ed.SetDistanceExtent(strip.Thickness, SideOf(app, sketch, toPart, into));
+                    ed.SetDistanceExtent(strip.Wall, SideOf(app, sketch, toPart, into));
                     ExtrudeFeature feature = extrudes.Add(ed);
                     Label(feature, p.Name + " - Tab" + (s == 0 ? "" : " " + (s + 1)), p.Id, RoleTab + (s == 0 ? "" : s.ToString()));
                     try { sketch.Name = p.Name + " - Tab Sketch" + (s == 0 ? "" : " " + (s + 1)); } catch { }
@@ -768,19 +769,19 @@ namespace TabSlotAddIn.Core
                 try
                 {
                     FaceInfo.Strip strip = tab.Strips[s];
-                    double radius = p.ReliefFor(strip.Thickness);
+                    double radius = p.ReliefFor(strip.Wall);
                     if (radius <= 1e-6) continue;
                     var centres = new List<V3>();
                     foreach (Footprint f in plan.Tabs)
                     {
-                        if (f.StripIndex != s || f.Width < strip.Thickness - 1e-6) continue;   // narrower tabs have no root corners on the outer side
+                        if (f.StripIndex != s || f.Width < strip.Wall - 1e-6) continue;   // narrower tabs have no root corners on the outer side
                         centres.Add(f.Origin);
                         centres.Add(f.Origin + f.U * f.Length);
                     }
                     if (centres.Count == 0) continue;
                     FaceProxy side = FindFaceBesideStrip(tab, strip);
                     if (side == null) continue;
-                    CreateCircleCut(app, p, tab, side, centres, radius, -OutwardNormal(side), strip.Thickness, RoleRelief + s);
+                    CreateCircleCut(app, p, tab, side, centres, radius, -OutwardNormal(side), strip.Wall, RoleRelief + s);
                 }
                 catch (Exception ex) { Log.Write("Tab relief failed: " + ex.Message); }
             }

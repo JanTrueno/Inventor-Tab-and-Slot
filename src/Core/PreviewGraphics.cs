@@ -44,13 +44,10 @@ namespace TabSlotAddIn.Core
                 for (int i = 0; i < plan.Tabs.Count; i++)
                 {
                     Footprint t = plan.Tabs[i];
-                    AddBlock(tabNode, tg, brep, t.Origin, t.U, t.V, plan.TabDirection, t.Length, t.Width, plan.TabHeight, green, place);
+                    AddBlock(tabNode, tg, brep, t.Origin, t.U, t.V, t.Dir, t.Length, t.Width, t.Height, green, place);
 
                     Footprint s = plan.SlotFootprint(i);
-                    // The slot block always extends along the tab axis; flip its origin when the cut runs against it.
-                    V3 origin = s.Origin;
-                    if (plan.SlotInto.Dot(plan.TabDirection) < 0) origin = origin - plan.TabDirection * plan.SlotPreviewDepth;
-                    AddBlock(slotNode, tg, brep, origin, s.U, s.V, plan.TabDirection, s.Length, s.Width, plan.SlotPreviewDepth, red, place);
+                    AddBlock(slotNode, tg, brep, s.Origin, s.U, s.V, plan.SlotInto, s.Length, s.Width, plan.SlotPreviewDepth, red, place);
                 }
             }
             Refresh();
@@ -59,6 +56,8 @@ namespace TabSlotAddIn.Core
         private static void AddBlock(GraphicsNode node, TransientGeometry tg, TransientBRep brep,
                                      V3 origin, V3 ex, V3 ey, V3 ez, double lx, double ly, double lz, Color color, Matrix[] moves)
         {
+            // keep the frame right-handed so the solid is not mirrored inside out
+            if (ex.Cross(ey).Dot(ez) < 0) { origin = origin + ey * ly; ey = -ey; }
             Box box = tg.CreateBox();
             box.MinPoint = tg.CreatePoint(0, 0, 0);
             box.MaxPoint = tg.CreatePoint(lx, ly, lz);

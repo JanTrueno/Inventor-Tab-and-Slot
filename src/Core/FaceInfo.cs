@@ -48,6 +48,66 @@ namespace TabSlotAddIn.Core
         {
             public V3 Origin, U, V;
             public double Length, Thickness;
+            /// <summary>Which way the tabs grow: in the plane of the wall (or sheet), square to the edge. Equal to the face
+            /// normal on a square-cut end; tilted away from it on a mitered end.</summary>
+            public V3 Dir;
+            /// <summary>Across the wall from its outer face into the material, square to <see cref="Dir"/> and U.</summary>
+            public V3 Across;
+            /// <summary>True wall (or sheet) thickness along <see cref="Across"/>.</summary>
+            public double Wall;
+            public bool Mitered => Dir.Dot(V) * Dir.Dot(V) > 1e-6;
+        }
+
+        /// <summary>
+        /// Works out each strip's growth direction from the flat face that shares its outer edge (the outer wall of a tube or
+        /// the broad face of a sheet): the tab runs on in that face's plane, square to the edge. Without such a face the tab
+        /// grows along the face normal, as on a square-cut end.
+        /// </summary>
+        private void SetStripDirections(FaceProxy proxy)
+        {
+            for (int i = 0; i < Strips.Count; i++)
+            {
+                Strip s = Strips[i];
+                s.Dir = Normal; s.Across = s.V; s.Wall = s.Thickness;
+                try
+                {
+                    V3 w = SideNormal(proxy, s);
+                    if (w.Length > 0.5)
+                    {
+                        V3 dir = s.U.Cross(w).Unit();
+                        if (dir.Dot(Normal) < 0) dir = -dir;
+                        if (dir.Dot(Normal) > 0.2 && dir.Dot(Normal) < 0.99999)
+                        {
+                            V3 across = -w;                      // the side face is the outer face, so inward is -w
+                            if (across.Dot(s.V) < 0) across = -across;
+                            s.Dir = dir; s.Across = across; s.Wall = s.Thickness * Math.Abs(s.V.Dot(across));
+                        }
+                    }
+                }
+                catch { /* keep the face normal */ }
+                Strips[i] = s;
+            }
+        }
+
+        /// <summary>Normal of the flat face (other than the picked one) that shares the strip's outer edge; zero when none.</summary>
+        private static V3 SideNormal(FaceProxy proxy, Strip s)
+        {
+            foreach (Edge e in proxy.Edges)
+            {
+                if (e.GeometryType != CurveTypeEnum.kLineSegmentCurve) continue;
+                V3 a = V3.From(e.StartVertex.Point), b = V3.From(e.StopVertex.Point);
+                if (Math.Abs((b - a).Unit().Dot(s.U)) < 0.999) continue;
+                V3 rel = a - s.Origin;
+                if ((rel - s.U * rel.Dot(s.U)).Length > 0.01) continue;      // not on this strip's outer edge line
+                foreach (Face f in e.Faces)
+                {
+                    var fp = f as FaceProxy;
+                    if (fp == null || fp.TransientKey == proxy.TransientKey || fp.SurfaceType != SurfaceTypeEnum.kPlaneSurface) continue;
+                    V3 n = V3.From(((Plane)fp.Geometry).Normal);
+                    return (fp.IsParamReversed ? -n : n).Unit();
+                }
+            }
+            return default(V3);
         }
 
         /// <summary>One strip for an ordinary face, one per flat wall for a square tube end.</summary>
@@ -245,6 +305,7 @@ namespace TabSlotAddIn.Core
             if (flatMax - flatMin > 1e-6) { info.UMin = flatMin; info.UMax = flatMax; }
 
             info.BuildStrips(proxy, runAlongShortEdge);
+            info.SetStripDirections(proxy);
             info.CollectBodyPoints();
             return info;
         }
