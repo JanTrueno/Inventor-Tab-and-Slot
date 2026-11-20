@@ -135,7 +135,7 @@ namespace TabSlotAddIn.Core
                 foreach (double a in starts)
                 {
                     double u0 = p.FlipStart ? strip.Length - a - p.TabLength : a;
-                    double height = p.Height == HeightMode.Flush ? p.TabLength / 2 : p.HeightValue;
+                    double height = p.Height == HeightMode.Flush ? strip.Wall : p.HeightValue;   // default: as deep as the wall is thick
                     if (height <= 1e-6) { plan.Error = "The tab height must be greater than zero."; return plan; }
                     plan.Tabs.Add(new Footprint
                     {
