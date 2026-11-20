@@ -475,6 +475,14 @@ namespace TabSlotAddIn.UI
                     _slotProxy = info.Proxy; _slot = info; _tabNeedsResolve = true;
                     _panel.SetSlotDepth(Math.Max(info.DepthIntoBody(), 0.01));
                 }
+                // A face lying flat against another part (the other half of a miter, or the plate a tube stands on): the slot side.
+                if (role == PickTarget.Tab && _slot == null)
+                {
+                    FaceProxy other = TabSlotBuilder.FindTouchingFace(_doc, info);
+                    FaceInfo otherInfo = other == null ? null : FaceInfo.FromSelection(other, _p.RunAlongShortEdge, out string _);
+                    if (otherInfo != null) { _slotProxy = other; _slot = otherInfo; _tabNeedsResolve = false; }
+                    Log.Write("Miter: touching face " + (otherInfo != null ? "found on " + otherInfo.DisplayName : "not found"));
+                }
                 AutoOrder();
                 RefreshFaceTexts();
                 AdvanceTarget();

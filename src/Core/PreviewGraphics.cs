@@ -47,7 +47,7 @@ namespace TabSlotAddIn.Core
                     AddBlock(tabNode, tg, brep, t.Origin, t.U, t.V, t.Dir, t.Length, t.Width, t.Height, green, place);
 
                     Footprint s = plan.SlotFootprint(i);
-                    AddBlock(slotNode, tg, brep, s.Origin, s.U, s.V, plan.SlotInto, s.Length, s.Width, plan.SlotPreviewDepth, red, place);
+                    AddBlock(slotNode, tg, brep, s.Origin, s.U, s.V, s.Dir, s.Length, s.Width, s.Height, red, place);
                 }
             }
             Refresh();

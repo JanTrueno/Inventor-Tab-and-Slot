@@ -14,6 +14,7 @@ namespace TabSlotAddIn.Core
         public int StripIndex;   // which strip of the tab face it sits on (tube: one per wall)
         public V3 Dir;
         public double Height;
+        public Inventor.FaceProxy SlotFace;   // miter joint: the outer face of the other part's wall the notch is cut into
 
         public V3[] Corners() => new[]
         {
@@ -61,6 +62,23 @@ namespace TabSlotAddIn.Core
         public Footprint SlotFootprint(int i)
         {
             Footprint t = Tabs[i];
+            if (Miter)
+            {
+                // A notch in the other part's wall, in the plane of the wall: the tab outline grown by the clearance at the
+                // sides and tip, starting a little before the joint so it opens cleanly at the edge. Cut through the wall.
+                const double back = 0.1;
+                return new Footprint
+                {
+                    Origin = t.Origin - t.U * Clearance - t.Dir * back,
+                    U = t.U,
+                    V = t.Dir,
+                    Length = t.Length + 2 * Clearance,
+                    Width = t.Height + back + Clearance,
+                    Dir = t.V,
+                    Height = t.Width,
+                    SlotFace = t.SlotFace
+                };
+            }
             V3 n = -SlotInto;
             V3 u = (t.U - n * t.U.Dot(n)).Unit();
             V3 v = n.Cross(u).Unit();
@@ -85,8 +103,58 @@ namespace TabSlotAddIn.Core
                 V = v,
                 Length = u1 - u0 + 2 * Clearance,
                 Width = v1 - v0 + 2 * across,
-                Dir = SlotInto
+                Dir = SlotInto,
+                Height = SlotPreviewDepth
             };
+        }
+
+        /// <summary>A miter joint: the two ends lie flat against each other, and the tabs run on in the plane of the walls.</summary>
+        public bool Miter;
+
+        /// <summary>
+        /// Miter joint: on every wall that carries on in the plane of a wall of the other part, tabs run square to the miter
+        /// edge into notches in that wall. Walls that meet the other part at an angle get none.
+        /// </summary>
+        private static Plan CreateMiter(TabSlotParams p, FaceInfo tab, FaceInfo slot, Plan plan)
+        {
+            plan.Miter = true;
+            plan.Clearance = p.ClearanceFor(tab.Strips.Count > 0 ? tab.Strips[0].Wall : 0, p.TabLength);
+            for (int stripIndex = 0; stripIndex < tab.Strips.Count; stripIndex++)
+            {
+                FaceInfo.Strip strip = tab.Strips[stripIndex];
+                if (tab.IsTube && p.TubeWalls != 0)
+                {
+                    bool parallelToFirst = Math.Abs(strip.U.Dot(tab.Strips[0].U)) > 0.9;
+                    if (parallelToFirst != (p.TubeWalls == 1)) continue;
+                }
+                Inventor.FaceProxy wall = slot.CoplanarFace(strip.Origin, -strip.Across);
+                if (wall == null) continue;
+
+                List<double> starts = Layout(p, strip.Length, out string layoutError);
+                if (layoutError != null) { plan.Error = layoutError; return plan; }
+                foreach (double a in starts)
+                {
+                    double u0 = p.FlipStart ? strip.Length - a - p.TabLength : a;
+                    double height = p.Height == HeightMode.Flush ? p.TabLength / 2 : p.HeightValue;
+                    if (height <= 1e-6) { plan.Error = "The tab height must be greater than zero."; return plan; }
+                    plan.Tabs.Add(new Footprint
+                    {
+                        Origin = strip.Origin + strip.U * u0,
+                        U = strip.U,
+                        V = strip.Across,
+                        Length = p.TabLength,
+                        Width = strip.Wall,
+                        StripIndex = stripIndex,
+                        Dir = strip.Dir,
+                        Height = height,
+                        SlotFace = wall
+                    });
+                    plan.TabHeight = Math.Max(plan.TabHeight, height);
+                }
+            }
+            if (plan.Tabs.Count == 0) return null;   // not a miter joint after all (e.g. a tube standing on a plate)
+            plan.SlotPreviewDepth = plan.Tabs[0].Width;
+            return plan;
         }
 
         public static Plan Create(TabSlotParams p, FaceInfo tab, FaceInfo slot)
@@ -106,6 +174,13 @@ namespace TabSlotAddIn.Core
             plan.TabDirection = tab.Normal;
             plan.SlotInto = -slot.Normal;
             plan.SlotPlanePoint = slot.Origin;
+
+            // two ends lying flat against each other whose walls carry on into each other: a miter joint
+            if (tab.Normal.Dot(slot.Normal) <= -ParallelTolerance && Math.Abs((slot.Origin - tab.Origin).Dot(tab.Normal)) < 0.01)
+            {
+                Plan miter = CreateMiter(p, tab, slot, new Plan { TabDirection = tab.Normal, SlotInto = -slot.Normal, SlotPlanePoint = slot.Origin });
+                if (miter != null) return miter;
+            }
             plan.Clearance = p.ClearanceFor(slot.DepthIntoBody(), p.TabLength);
             plan.SlotThrough = p.SlotThrough;
             double slotSheet = slot.DepthIntoBody();

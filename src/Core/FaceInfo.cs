@@ -89,6 +89,38 @@ namespace TabSlotAddIn.Core
             }
         }
 
+        /// <summary>True when the face is a mitered end (its tabs would leave it at an angle).</summary>
+        public bool IsMitered
+        {
+            get { foreach (Strip s in Strips) if (s.Mitered) return true; return false; }
+        }
+
+        /// <summary>A point on the material of the face (the middle of its first strip), never in a tube's hollow.</summary>
+        public V3 PointOnMaterial()
+        {
+            Strip s = Strips.Count > 0 ? Strips[0] : default(Strip);
+            return Strips.Count > 0 ? s.Origin + s.U * (s.Length / 2) + s.V * (s.Thickness / 2) : Point((UMin + UMax) / 2, (VMin + VMax) / 2);
+        }
+
+        /// <summary>A flat face of this face's body lying in the plane through <paramref name="p"/> with outward normal <paramref name="n"/>.</summary>
+        public FaceProxy CoplanarFace(V3 p, V3 n)
+        {
+            try
+            {
+                foreach (Face f in Proxy.SurfaceBody.Faces)
+                {
+                    if (f.SurfaceType != SurfaceTypeEnum.kPlaneSurface) continue;
+                    V3 fn = V3.From(((Plane)f.Geometry).Normal);
+                    if (f.IsParamReversed) fn = -fn;
+                    if (fn.Unit().Dot(n) < 0.9998) continue;
+                    if (Math.Abs((p - V3.From(f.Vertices[1].Point)).Dot(n)) > 1e-3) continue;
+                    return f as FaceProxy;
+                }
+            }
+            catch { /* no geometry access */ }
+            return null;
+        }
+
         /// <summary>Normal of the flat face (other than the picked one) that shares the strip's outer edge; zero when none.</summary>
         private static V3 SideNormal(FaceProxy proxy, Strip s)
         {

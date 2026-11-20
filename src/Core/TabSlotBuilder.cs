@@ -53,7 +53,8 @@ namespace TabSlotAddIn.Core
             CreateTabReliefs(app, p, tab, plan);
             try
             {
-                CreateSlot(app, p, slot, slotQuads, RoleSlot);
+                if (plan.Miter) CreateMiterNotches(app, p, plan);
+                else CreateSlot(app, p, slot, slotQuads, RoleSlot);
             }
             catch
             {
@@ -63,7 +64,7 @@ namespace TabSlotAddIn.Core
             }
 
             p.ExtraSlotFiles = "";
-            if (p.AllCopies)
+            if (p.AllCopies && !plan.Miter)
             {
                 try { CreateSlotsForCopies(app, asm, p, tab, slot, slotQuads); }
                 catch (Exception ex) { Log.Write("Slots for other copies failed: " + ex.Message); }
@@ -77,6 +78,28 @@ namespace TabSlotAddIn.Core
             else CreateExtrude(app, slot, quads, -slot.Normal, true, false,
                                slot.DepthIntoBody() + 0.01,   // through the wall only, not the far wall of a tube
                                p.Name + " - Slot", p.Id, role, relief);
+        }
+
+        /// <summary>Miter joint: the notches, sketched on the outer face of each wall they go into and cut through that wall.</summary>
+        private static void CreateMiterNotches(Inventor.Application app, TabSlotParams p, Plan plan)
+        {
+            var groups = new List<(FaceProxy Face, List<V3[]> Quads, Footprint First)>();
+            for (int i = 0; i < plan.Tabs.Count; i++)
+            {
+                Footprint s = plan.SlotFootprint(i);
+                int g = groups.FindIndex(x => x.Face.TransientKey == s.SlotFace.TransientKey);
+                if (g < 0) { groups.Add((s.SlotFace, new List<V3[]>(), s)); g = groups.Count - 1; }
+                groups[g].Quads.Add(s.Corners());
+            }
+            for (int g = 0; g < groups.Count; g++)
+            {
+                FaceInfo wall = FaceInfo.FromSelection(groups[g].Face, false, out string error);
+                if (wall == null) throw new InvalidOperationException("Could not read the wall for the notch: " + error);
+                string role = RoleSlot + (g == 0 ? "" : (g + 1).ToString());
+                if (IsSheetMetal(wall)) CreateSheetCut(app, p, wall, groups[g].Quads, 0, role);
+                else CreateExtrude(app, wall, groups[g].Quads, groups[g].First.Dir, true, false,
+                                   groups[g].First.Height + 0.01, p.Name + " - Slot", p.Id, role);
+            }
         }
 
         // ----- other copies of the tab part ----------------------------------------------------------------------
@@ -165,6 +188,14 @@ namespace TabSlotAddIn.Core
                 catch (Exception ex) { Log.Write("Copy " + c.Name + ": " + ex.Message); }
             }
             p.ExtraSlotFiles = string.Join("|", extraFiles);
+        }
+
+        /// <summary>The face of another part lying flat against <paramref name="tab"/> (the other half of a miter joint); null if none.</summary>
+        public static FaceProxy FindTouchingFace(AssemblyDocument asm, FaceInfo tab)
+        {
+            var occurrences = new List<ComponentOccurrence>();
+            foreach (ComponentOccurrence o in asm.ComponentDefinition.Occurrences.AllLeafOccurrences) occurrences.Add(o);
+            return FindSlotFace(occurrences, tab.PartDoc, tab.PointOnMaterial(), -tab.Normal);
         }
 
         private static bool SameDocument(ComponentOccurrence occ, PartDocument doc)
