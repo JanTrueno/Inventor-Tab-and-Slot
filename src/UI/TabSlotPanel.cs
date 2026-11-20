@@ -50,7 +50,7 @@ namespace TabSlotAddIn.UI
         // existing sets
         private readonly ListView _list = new ListView
         {
-            View = View.Details, FullRowSelect = true, MultiSelect = false, HideSelection = false, Scrollable = false,
+            View = View.Details, FullRowSelect = true, MultiSelect = true, HideSelection = false, Scrollable = false,
             HeaderStyle = ColumnHeaderStyle.None, Height = 120
         };
         private IconButton _editSet, _deleteSet;
@@ -66,8 +66,8 @@ namespace TabSlotAddIn.UI
         public event Action OkClicked;
         public event Action CancelClicked;
         public event Action<string> EditRequested;
-        public event Action<string> DeleteRequested;
-        public event Action<string> SetSelected;   // id of the set selected in the list, or null
+        public event Action<List<string>> DeleteRequested;
+        public event Action<List<string>> SetSelected;   // ids of the sets selected in the list
 
         public TabSlotPanel(Units units, Theme theme)
         {
@@ -196,6 +196,14 @@ namespace TabSlotAddIn.UI
             UpdateVisibility();
         }
 
+        /// <summary>Puts a computed tab length (cm) in the Length field.</summary>
+        public void SetTabLength(double cm)
+        {
+            _loading = true;
+            try { _length.Text = _units.Format(cm); }
+            finally { _loading = false; }
+        }
+
         /// <summary>Editing a set: shows the Name field so the set can be renamed.</summary>
         public void ShowName(string name)
         {
@@ -305,12 +313,19 @@ namespace TabSlotAddIn.UI
             if (!enabled) _listInfo.Text = "Finish editing to manage other sets.";
         }
 
+        private List<string> SelectedIds()
+        {
+            var ids = new List<string>();
+            foreach (ListViewItem item in _list.SelectedItems) if (item.Tag is SetRow r) ids.Add(r.Id);
+            return ids;
+        }
+
         private string SelectedId() => _list.SelectedItems.Count == 1 ? (_list.SelectedItems[0].Tag as SetRow)?.Id : null;
 
         private void UpdateListButtons()
         {
-            bool any = _list.Enabled && SelectedId() != null;
-            foreach (Control b in new Control[] { _editSet, _deleteSet }) b.Enabled = any;
+            _editSet.Enabled = _list.Enabled && SelectedId() != null;          // one set at a time
+            _deleteSet.Enabled = _list.Enabled && _list.SelectedItems.Count > 0;   // shift/ctrl-click for several
         }
 
         // ----- layout -------------------------------------------------------------------------------------------
@@ -497,10 +512,10 @@ namespace TabSlotAddIn.UI
             _spacing.SelectedIndexChanged += (s, e) => { UpdateVisibility(); Changed(); };
             _walls.SelectedIndexChanged += (s, e) => Changed();
             _copies.SelectedIndexChanged += (s, e) => Changed();
-            _list.SelectedIndexChanged += (s, e) => { UpdateListButtons(); SetSelected?.Invoke(SelectedId()); };
+            _list.SelectedIndexChanged += (s, e) => { UpdateListButtons(); SetSelected?.Invoke(SelectedIds()); };
             _list.DoubleClick += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
             _editSet.Click += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
-            _deleteSet.Click += (s, e) => { string id = SelectedId(); if (id != null) DeleteRequested?.Invoke(id); };
+            _deleteSet.Click += (s, e) => { List<string> ids = SelectedIds(); if (ids.Count > 0) DeleteRequested?.Invoke(ids); };
 
             _ok.Click += (s, e) => OkClicked?.Invoke();
             _cancel.Click += (s, e) => CancelClicked?.Invoke();

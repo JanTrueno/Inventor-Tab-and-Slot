@@ -213,18 +213,21 @@ namespace TabSlotAddIn.UI
             return null;
         }
 
-        /// <summary>Highlights the features of the set selected in the list: tabs and reliefs green, slots red, on every copy.</summary>
-        private void ShowSet(string id)
+        /// <summary>Highlights the features of the sets selected in the list: tabs and reliefs green, slots red, on every copy.</summary>
+        private void ShowSet(List<string> ids)
         {
             try
             {
                 _hiSetTabs.Clear();
                 _hiSetSlots.Clear();
-                TabSlotParams set = id == null || _editing ? null : FindSet(id);
-                if (set != null)
-                {
-                    var occurrences = new List<ComponentOccurrence>();
+                var sets = new List<TabSlotParams>();
+                if (ids != null && !_editing)
+                    foreach (TabSlotParams s in TabSlotStore.LoadAll(_doc)) if (ids.Contains(s.Id)) sets.Add(s);
+                var occurrences = new List<ComponentOccurrence>();
+                if (sets.Count > 0)
                     foreach (ComponentOccurrence o in _doc.ComponentDefinition.Occurrences.AllLeafOccurrences) occurrences.Add(o);
+                foreach (TabSlotParams set in sets)
+                {
                     foreach (var entry in TabSlotBuilder.AllFeatures(_doc, set))
                     {
                         bool isTab = string.Equals(entry.Key.FullDocumentName, set.TabPartFile, StringComparison.OrdinalIgnoreCase);
@@ -298,12 +301,14 @@ namespace TabSlotAddIn.UI
 
 
 
-        private void OnDeleteSet(string id)
+        private void OnDeleteSet(List<string> ids)
         {
-            TabSlotParams set = FindSet(id);
-            if (set == null) return;
+            var sets = new List<TabSlotParams>();
+            foreach (string id in ids) { TabSlotParams s = FindSet(id); if (s != null) sets.Add(s); }
+            if (sets.Count == 0) return;
+            string what = sets.Count == 1 ? "\"" + sets[0].Name + "\"" : sets.Count + " tab and slots";
             DialogResult answer = MessageBox.Show(_owner,
-                "Delete \"" + set.Name + "\"?\n\nThe tab is removed from the tab part and the slot from the slot part.",
+                "Delete " + what + "?\n\nThe tabs are removed from the tab parts and the slots from the slot parts.",
                 "Tab and Slot", MessageBoxButtons.OKCancel, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.OK) return;
 
@@ -311,8 +316,12 @@ namespace TabSlotAddIn.UI
             try
             {
                 _preview.Clear();
-                TabSlotBuilder.DeleteFeatures(_doc, set);
-                TabSlotStore.Remove(_doc, set.Id);
+                ShowSet(null);
+                foreach (TabSlotParams set in sets)
+                {
+                    TabSlotBuilder.DeleteFeatures(_doc, set);
+                    TabSlotStore.Remove(_doc, set.Id);
+                }
                 _doc.Update();
                 tx.End();
             }
@@ -570,8 +579,27 @@ namespace TabSlotAddIn.UI
             FaceProxy proxy = which == PickTarget.Tab ? _tabProxy : _slotProxy;
             if (proxy == null) return;
             FaceInfo info = FaceInfo.FromSelection(proxy, _p.RunAlongShortEdge, out string error);
-            if (which == PickTarget.Tab) { _tab = info; _tabRotated = _p.RunAlongShortEdge; }
+            if (which == PickTarget.Tab) { _tab = info; _tabRotated = _p.RunAlongShortEdge; FitTabLength(); }
             else _slot = info;
+        }
+
+        private FaceProxy _lengthFittedFor;   // the tab face the length was last fitted to
+
+        /// <summary>
+        /// On a newly picked tab face (not while editing): start from the default 20 mm and take 5 mm off until the tabs
+        /// fit on the shortest strip with room to spare, down to 5 mm.
+        /// </summary>
+        private void FitTabLength()
+        {
+            if (_editing || _tab == null || _tab.Strips.Count == 0 || ReferenceEquals(_tabProxy, _lengthFittedFor)) return;
+            _lengthFittedFor = _tabProxy;
+            double shortest = double.MaxValue;
+            foreach (FaceInfo.Strip s in _tab.Strips) shortest = Math.Min(shortest, s.Length);
+            int count = Math.Max(1, _p.Count);
+            double length = new TabSlotParams().TabLength;   // 2 cm
+            while (length > 0.5 + 1e-9 && count * length >= shortest - 1e-6) length -= 0.5;
+            _p.TabLength = length;
+            _panel.SetTabLength(length);
         }
 
         private void RefreshFaceTexts()
