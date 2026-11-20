@@ -146,6 +146,20 @@ namespace TabSlotAddIn.UI
         public static void TubePairA(Graphics g, Rectangle b, Color ink, Color accent) => Tube(g, b, ink, accent, true, false);
         public static void TubePairB(Graphics g, Rectangle b, Color ink, Color accent) => Tube(g, b, ink, accent, false, true);
 
+        /// <summary>A plate with one block (the picked tab part) or with two (it and a copy), each standing in a slot.</summary>
+        private static void Copies(Graphics g, Rectangle b, Color ink, Color accent, params float[] centres)
+        {
+            var r = new RectangleF(b.X + 6, b.Y + 6, b.Width - 12, b.Height - 12);
+            float plateY = r.Bottom - 5;
+            using (var pen = Ink(ink)) g.DrawRectangle(pen, r.Left, plateY, r.Width, 4);
+            using (var fill = new SolidBrush(accent))
+                foreach (float c in centres)
+                    g.FillRectangle(fill, r.Left + c * r.Width - 3, r.Top, 6, plateY + 2 - r.Top);
+        }
+
+        public static void CopyOne(Graphics g, Rectangle b, Color ink, Color accent) => Copies(g, b, ink, accent, 0.5f);
+        public static void CopyAll(Graphics g, Rectangle b, Color ink, Color accent) => Copies(g, b, ink, accent, 0.25f, 0.75f);
+
         public static void FixedPitch(Graphics g, Rectangle b, Color ink, Color accent)
         {
             Plate(g, b, ink, accent, 0.25f, 0.65f);

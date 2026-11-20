@@ -65,6 +65,8 @@ namespace TabSlotAddIn.Core
         }
 
         public int TubeWalls;             // square tube: 0 all four walls, 1 or 2 one pair of opposite walls
+        public bool AllCopies;            // also cut slots where the other copies of the tab part land
+        public string ExtraSlotFiles = "";  // parts other than SlotPartFile that got a slot that way, '|' separated
         public bool ReliefAuto = true;    // radius follows the plate thickness (corner hole table)
 
         /// <summary>Relief radius in cm for a plate of the given thickness (cm).</summary>
@@ -112,6 +114,7 @@ namespace TabSlotAddIn.Core
             S("TabFaceKey", TabFaceKey); S("SlotFaceKey", SlotFaceKey); S("KeyContext", KeyContext);
             S("TabPartFile", TabPartFile); S("SlotPartFile", SlotPartFile);
             S("TabOccName", TabOccName); S("SlotOccName", SlotOccName);
+            B("AllCopies", AllCopies); S("ExtraSlotFiles", ExtraSlotFiles);
             return sb.ToString();
         }
 
@@ -150,7 +153,16 @@ namespace TabSlotAddIn.Core
             p.TabFaceKey = Str("TabFaceKey", ""); p.SlotFaceKey = Str("SlotFaceKey", ""); p.KeyContext = Str("KeyContext", "");
             p.TabPartFile = Str("TabPartFile", ""); p.SlotPartFile = Str("SlotPartFile", "");
             p.TabOccName = Str("TabOccName", ""); p.SlotOccName = Str("SlotOccName", "");
+            p.AllCopies = Bool("AllCopies", false); p.ExtraSlotFiles = Str("ExtraSlotFiles", "");
             return p;
+        }
+
+        /// <summary>Every part that holds slots of this set: the picked slot part first, then any extra ones.</summary>
+        public IEnumerable<string> SlotFiles()
+        {
+            yield return SlotPartFile;
+            foreach (string f in (ExtraSlotFiles ?? "").Split('|'))
+                if (f.Length > 0 && !string.Equals(f, SlotPartFile, StringComparison.OrdinalIgnoreCase)) yield return f;
         }
     }
 }

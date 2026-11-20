@@ -19,7 +19,7 @@ namespace TabSlotAddIn.Core
 
         // ----- create ---------------------------------------------------------------------------------------------
 
-        public static void Create(Inventor.Application app, TabSlotParams p, FaceInfo tab, FaceInfo slot, Plan plan)
+        public static void Create(Inventor.Application app, AssemblyDocument asm, TabSlotParams p, FaceInfo tab, FaceInfo slot, Plan plan)
         {
             var tabQuads = new List<V3[]>();
             var slotQuads = new List<V3[]>();
@@ -52,11 +52,7 @@ namespace TabSlotAddIn.Core
             CreateTabReliefs(app, p, tab, plan);
             try
             {
-                double relief = p.ReliefFor(slot.DepthIntoBody());
-                if (IsSheetMetal(slot)) CreateSheetCut(app, p, slot, slotQuads, relief);
-                else CreateExtrude(app, slot, slotQuads, plan.SlotInto, true, false,
-                                   slot.DepthIntoBody() + 0.01,   // through the wall only, not the far wall of a tube
-                                   p.Name + " - Slot", p.Id, RoleSlot, relief);
+                CreateSlot(app, p, slot, slotQuads, RoleSlot);
             }
             catch
             {
@@ -64,6 +60,160 @@ namespace TabSlotAddIn.Core
                 DeleteSetFeatures(tab.PartDef, p.Id, RoleTab);
                 throw;
             }
+
+            p.ExtraSlotFiles = "";
+            if (p.AllCopies)
+            {
+                try { CreateSlotsForCopies(app, asm, p, tab, slot, slotQuads); }
+                catch (Exception ex) { Log.Write("Slots for other copies failed: " + ex.Message); }
+            }
+        }
+
+        private static void CreateSlot(Inventor.Application app, TabSlotParams p, FaceInfo slot, List<V3[]> quads, string role)
+        {
+            double relief = p.ReliefFor(slot.DepthIntoBody());
+            if (IsSheetMetal(slot)) CreateSheetCut(app, p, slot, quads, relief, role);
+            else CreateExtrude(app, slot, quads, -slot.Normal, true, false,
+                               slot.DepthIntoBody() + 0.01,   // through the wall only, not the far wall of a tube
+                               p.Name + " - Slot", p.Id, role, relief);
+        }
+
+        // ----- other copies of the tab part ----------------------------------------------------------------------
+
+        /// <summary>
+        /// Every other copy of the tab part carries the same tabs, so it needs a slot wherever it lands: the slot outline
+        /// is moved along with the copy and cut into whichever part has a matching face there (the same slot part or
+        /// another one). Copies whose spot is already cut, because the slot part is shared, are skipped.
+        /// </summary>
+        private static void CreateSlotsForCopies(Inventor.Application app, AssemblyDocument asm, TabSlotParams p,
+                                                 FaceInfo tab, FaceInfo slot, List<V3[]> slotQuads)
+        {
+            TransientGeometry tg = app.TransientGeometry;
+            Matrix toTabPart = tab.Occurrence.Transformation.Copy();
+            toTabPart.Invert();
+
+            var occurrences = new List<ComponentOccurrence>();
+            foreach (ComponentOccurrence o in asm.ComponentDefinition.Occurrences.AllLeafOccurrences) occurrences.Add(o);
+
+            var extraFiles = new List<string>();
+            int made = 0;
+            foreach (ComponentOccurrence copy in occurrences)
+            {
+                try
+                {
+                    if (copy.Suppressed || !SameDocument(copy, tab.PartDoc)) continue;
+                    Matrix move = copy.Transformation;
+                    V3 MapPoint(V3 x)
+                    {
+                        Point pt = tg.CreatePoint(x.X, x.Y, x.Z);
+                        pt.TransformBy(toTabPart); pt.TransformBy(move);
+                        return V3.From(pt);
+                    }
+                    V3 MapVector(V3 x)
+                    {
+                        Vector v = tg.CreateVector(x.X, x.Y, x.Z);
+                        v.TransformBy(toTabPart); v.TransformBy(move);
+                        return V3.From(v);
+                    }
+
+                    var quads = new List<V3[]>();
+                    V3 centre = default(V3);
+                    foreach (V3[] q in slotQuads)
+                    {
+                        var moved = new V3[q.Length];
+                        for (int i = 0; i < q.Length; i++) { moved[i] = MapPoint(q[i]); centre = centre + moved[i]; }
+                        quads.Add(moved);
+                    }
+                    centre = centre * (1.0 / (slotQuads.Count * 4));
+                    if ((MapPoint(slot.Origin) - slot.Origin).Length < 1e-4 && (MapVector(slot.Normal) - slot.Normal).Length < 1e-4)
+                        continue;   // the picked copy itself
+
+                    FaceProxy face = FindSlotFace(occurrences, tab.PartDoc, centre, MapVector(slot.Normal).Unit());
+                    if (face == null) { Log.Write("Copy " + copy.Name + ": no slot face found (or already cut)"); continue; }
+                    FaceInfo target = FaceInfo.FromSelection(face, p.RunAlongShortEdge, out string error);
+                    if (target == null) { Log.Write("Copy " + copy.Name + ": " + error); continue; }
+
+                    CreateSlot(app, p, target, quads, RoleSlot + (++made + 1));
+                    string file = target.PartDoc.FullDocumentName;
+                    if (!string.Equals(file, p.SlotPartFile, StringComparison.OrdinalIgnoreCase) && !extraFiles.Contains(file)) extraFiles.Add(file);
+                    Log.Write("Copy " + copy.Name + ": slot cut in " + target.DisplayName);
+                }
+                catch (Exception ex) { Log.Write("Copy " + copy.Name + ": " + ex.Message); }
+            }
+            p.ExtraSlotFiles = string.Join("|", extraFiles);
+        }
+
+        private static bool SameDocument(ComponentOccurrence occ, PartDocument doc)
+        {
+            return occ.Definition is PartComponentDefinition d &&
+                   string.Equals(((Document)d.Document).FullDocumentName, doc.FullDocumentName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// The planar face, on a part other than the tab part, that lies in the plane through <paramref name="centre"/>
+        /// with normal <paramref name="normal"/> and has solid material right behind that point.
+        /// </summary>
+        private static FaceProxy FindSlotFace(List<ComponentOccurrence> occurrences, PartDocument tabDoc, V3 centre, V3 normal)
+        {
+            const double tol = 1e-3;   // cm
+            foreach (ComponentOccurrence occ in occurrences)
+            {
+                try
+                {
+                    if (occ.Suppressed || !(occ.Definition is PartComponentDefinition) || SameDocument(occ, tabDoc)) continue;
+                    Box box = occ.RangeBox;
+                    if (centre.X < box.MinPoint.X - tol || centre.X > box.MaxPoint.X + tol ||
+                        centre.Y < box.MinPoint.Y - tol || centre.Y > box.MaxPoint.Y + tol ||
+                        centre.Z < box.MinPoint.Z - tol || centre.Z > box.MaxPoint.Z + tol) continue;
+
+                    foreach (SurfaceBody body in occ.SurfaceBodies)
+                    {
+                        if (!SolidBehind(body, centre, normal)) continue;
+                        foreach (Face f in body.Faces)
+                        {
+                            if (f.SurfaceType != SurfaceTypeEnum.kPlaneSurface) continue;
+                            V3 n = V3.From(((Plane)f.Geometry).Normal);
+                            if (f.IsParamReversed) n = -n;
+                            if (n.Unit().Dot(normal) < Plan.ParallelTolerance) continue;
+                            if (Math.Abs((centre - V3.From(f.Vertices[1].Point)).Dot(normal)) > tol) continue;
+                            if (FaceSpans(f, centre, normal)) return f as FaceProxy;
+                        }
+                    }
+                }
+                catch { /* occurrence without accessible geometry */ }
+            }
+            return null;
+        }
+
+        /// <summary>True when the body has material just behind the point and none just in front (so the point is on its skin).</summary>
+        private static bool SolidBehind(SurfaceBody body, V3 centre, V3 normal)
+        {
+            try
+            {
+                TransientGeometry tg = body.Application is Inventor.Application a ? a.TransientGeometry : null;
+                if (tg == null) return true;
+                V3 behind = centre - normal * 0.005, front = centre + normal * 0.005;
+                dynamic b = body;
+                string inside = Convert.ToString(b.IsPointInside(tg.CreatePoint(behind.X, behind.Y, behind.Z)));
+                string outside = Convert.ToString(b.IsPointInside(tg.CreatePoint(front.X, front.Y, front.Z)));
+                return inside.Contains("Inside") && !outside.Contains("Inside");
+            }
+            catch { return true; }   // cannot tell: rely on the plane and extent checks
+        }
+
+        /// <summary>True when <paramref name="p"/> lies within the in-plane extent of the face's vertices.</summary>
+        private static bool FaceSpans(Face f, V3 p, V3 normal)
+        {
+            V3 any = Math.Abs(normal.Z) < 0.9 ? new V3(0, 0, 1) : new V3(1, 0, 0);
+            V3 u = normal.Cross(any).Unit(), v = normal.Cross(u).Unit();
+            double u0 = double.MaxValue, u1 = double.MinValue, v0 = double.MaxValue, v1 = double.MinValue;
+            foreach (Vertex vx in f.Vertices)
+            {
+                V3 d = V3.From(vx.Point) - p;
+                u0 = Math.Min(u0, d.Dot(u)); u1 = Math.Max(u1, d.Dot(u));
+                v0 = Math.Min(v0, d.Dot(v)); v1 = Math.Max(v1, d.Dot(v));
+            }
+            return u0 <= 1e-4 && u1 >= -1e-4 && v0 <= 1e-4 && v1 >= -1e-4;
         }
 
         private static void DeleteSetFeatures(PartComponentDefinition def, string id, string rolePrefix)
@@ -249,7 +399,7 @@ namespace TabSlotAddIn.Core
         }
 
         /// <summary>Sheet metal slot: a Cut feature through the sheet, sketched on the picked sheet face.</summary>
-        private static void CreateSheetCut(Inventor.Application app, TabSlotParams p, FaceInfo slot, List<V3[]> quads, double relief)
+        private static void CreateSheetCut(Inventor.Application app, TabSlotParams p, FaceInfo slot, List<V3[]> quads, double relief, string role)
         {
             var def = (SheetMetalComponentDefinition)slot.PartDef;
             PlanarSketch sketch = DrawSketch(app, slot, slot.Native, quads, out Matrix toPart, relief);
@@ -261,7 +411,7 @@ namespace TabSlotAddIn.Core
                 // without reaching the opposite flange of a channel or box.
                 cd.SetDistanceExtent(2 * slot.DepthIntoBody() + 0.02, PartFeatureExtentDirectionEnum.kSymmetricExtentDirection);
                 CutFeature feature = ((SheetMetalFeatures)def.Features).CutFeatures.Add(cd);
-                Label(feature, p.Name + " - Slot", p.Id, RoleSlot);
+                Label(feature, p.Name + " - Slot", p.Id, role);
                 try { sketch.Name = p.Name + " - Slot Sketch"; } catch { }
             }
             catch
@@ -380,6 +530,9 @@ namespace TabSlotAddIn.Core
 
             var all = new List<PartFeature>(tabs);
             all.AddRange(slots);
+            foreach (string file in p.SlotFiles())
+                if (file != p.SlotPartFile && FindDocument(asm, file) is PartDocument extra)
+                    all.AddRange(FindFeatures(extra.ComponentDefinition, p.Id, RoleSlot));
             all.AddRange(FindFeatures(tabDoc.ComponentDefinition, p.Id, RoleRelief));
             foreach (PartFeature f in all) if (f.Suppressed) return FeatureHealth.Suppressed;
             try
@@ -401,9 +554,10 @@ namespace TabSlotAddIn.Core
                 foreach (PartFeature f in FindFeatures(tabDoc.ComponentDefinition, p.Id, RoleRelief)) list.Add(new KeyValuePair<PartDocument, PartFeature>(tabDoc, f));
                 foreach (PartFeature f in FindFeatures(tabDoc.ComponentDefinition, p.Id, RoleTab)) list.Add(new KeyValuePair<PartDocument, PartFeature>(tabDoc, f));
             }
-            if (FindDocument(asm, p.SlotPartFile) is PartDocument slotDoc)
+            foreach (string file in p.SlotFiles())
             {
-                foreach (PartFeature f in FindFeatures(slotDoc.ComponentDefinition, p.Id, RoleSlot)) list.Add(new KeyValuePair<PartDocument, PartFeature>(slotDoc, f));
+                if (FindDocument(asm, file) is PartDocument slotDoc)
+                    foreach (PartFeature f in FindFeatures(slotDoc.ComponentDefinition, p.Id, RoleSlot)) list.Add(new KeyValuePair<PartDocument, PartFeature>(slotDoc, f));
             }
             return list;
         }

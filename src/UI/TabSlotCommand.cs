@@ -638,7 +638,7 @@ namespace TabSlotAddIn.UI
                     if (!plan.IsValid) throw new InvalidOperationException(plan.Error);
                 }
 
-                TabSlotBuilder.Create(_app, p, tab, slot, plan);
+                TabSlotBuilder.Create(_app, _doc, p, tab, slot, plan);
                 TabSlotStore.Save(_doc, p);
                 _doc.Update();
                 tx.End();

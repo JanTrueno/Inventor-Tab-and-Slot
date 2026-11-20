@@ -38,7 +38,7 @@ namespace TabSlotAddIn.UI
 
         // tabs
         private readonly FieldBox _length, _count, _pitch, _height, _chamferSize;
-        private readonly IconToggleGroup _spacing, _walls;
+        private readonly IconToggleGroup _spacing, _walls, _copies;
         private bool _rotateValue;      // set by picking an edge; not shown in the panel
         private bool _heightEdited;     // false: the height follows the slot sheet thickness
         private bool _clearanceEdited;  // false: the oversize follows the tolerance table
@@ -85,6 +85,7 @@ namespace TabSlotAddIn.UI
             _count = new FieldBox(theme); _count.AsInteger(1, 99); _count.IntValue = 1;
             _spacing = new IconToggleGroup(theme, ("Equal spacing", ToggleIcons.Cmd("SpacingEqual", ToggleIcons.EqualSpacing)), ("Fixed pitch", ToggleIcons.Cmd("SpacingPitch", ToggleIcons.FixedPitch)));
             _walls = new IconToggleGroup(theme, ("All four walls", ToggleIcons.TubeAll), ("Two walls", ToggleIcons.TubePairA), ("Two walls, turned 90°", ToggleIcons.TubePairB));
+            _copies = new IconToggleGroup(theme, ("Slot for the picked tab only", ToggleIcons.CopyOne), ("Slots for every copy of the tab part", ToggleIcons.CopyAll));
             _clearance = new FieldBox(theme); _reliefRadius = new FieldBox(theme);
             _ok = new InventorButton(theme, "OK", true);
             _cancel = new InventorButton(theme, "Cancel", false);
@@ -120,6 +121,7 @@ namespace TabSlotAddIn.UI
             p.Count = _count.IntValue;
             p.Spacing = _spacing.SelectedIndex == 1 ? SpacingMode.Pitch : SpacingMode.Equal;
             p.TubeWalls = Math.Max(0, _walls.SelectedIndex);
+            p.AllCopies = _copies.SelectedIndex == 1;
 
 
             p.RunAlongShortEdge = _rotateValue;
@@ -178,6 +180,7 @@ namespace TabSlotAddIn.UI
                 _count.IntValue = p.Count;
                 _spacing.SelectedIndex = p.Spacing == SpacingMode.Pitch ? 1 : 0;
                 _walls.SelectedIndex = p.TubeWalls >= 0 && p.TubeWalls <= 2 ? p.TubeWalls : 0;
+                _copies.SelectedIndex = p.AllCopies ? 1 : 0;
                 _pitch.Text = _units.Format(p.Pitch);
                 _rotateValue = p.RunAlongShortEdge;
                 _heightEdited = p.Height == HeightMode.Distance;
@@ -388,6 +391,7 @@ namespace TabSlotAddIn.UI
             var t = Table();
             Row(t, "Oversize", _clearance);
             Row(t, "Relief", _reliefRadius);
+            Row(t, "Copies", _copies);
             return t;
         }
 
@@ -491,6 +495,7 @@ namespace TabSlotAddIn.UI
             };
             _spacing.SelectedIndexChanged += (s, e) => { UpdateVisibility(); Changed(); };
             _walls.SelectedIndexChanged += (s, e) => Changed();
+            _copies.SelectedIndexChanged += (s, e) => Changed();
             _list.SelectedIndexChanged += (s, e) => UpdateListButtons();
             _list.DoubleClick += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
             _editSet.Click += (s, e) => { string id = SelectedId(); if (id != null) EditRequested?.Invoke(id); };
