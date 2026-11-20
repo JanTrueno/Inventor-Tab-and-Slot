@@ -80,13 +80,21 @@ namespace TabSlotAddIn.Core
 
         // ----- other copies of the tab part ----------------------------------------------------------------------
 
+        /// <summary>Where one other copy of the tab part lands: how to move the picked tab there, and the slot face it meets.</summary>
+        public sealed class CopySlot
+        {
+            public string Name;
+            public Matrix ToTabPart;   // picked tab occurrence -> tab part space
+            public Matrix Move;        // tab part space -> this copy
+            public List<V3[]> Quads;   // the slot outlines, moved to this copy
+            public FaceProxy Face;
+        }
+
         /// <summary>
-        /// Every other copy of the tab part carries the same tabs, so it needs a slot wherever it lands: the slot outline
-        /// is moved along with the copy and cut into whichever part has a matching face there (the same slot part or
-        /// another one). Copies whose spot is already cut, because the slot part is shared, are skipped.
+        /// Every other copy of the tab part that has a slot face under its tabs. Lazy, so when cutting, each face is
+        /// looked up only after the previous slot is made. Copies whose spot is already cut (a shared slot part) are left out.
         /// </summary>
-        private static void CreateSlotsForCopies(Inventor.Application app, AssemblyDocument asm, TabSlotParams p,
-                                                 FaceInfo tab, FaceInfo slot, List<V3[]> slotQuads)
+        public static IEnumerable<CopySlot> FindCopySlots(Inventor.Application app, AssemblyDocument asm, FaceInfo tab, FaceInfo slot, List<V3[]> slotQuads)
         {
             TransientGeometry tg = app.TransientGeometry;
             Matrix toTabPart = tab.Occurrence.Transformation.Copy();
@@ -95,10 +103,9 @@ namespace TabSlotAddIn.Core
             var occurrences = new List<ComponentOccurrence>();
             foreach (ComponentOccurrence o in asm.ComponentDefinition.Occurrences.AllLeafOccurrences) occurrences.Add(o);
 
-            var extraFiles = new List<string>();
-            int made = 0;
             foreach (ComponentOccurrence copy in occurrences)
             {
+                CopySlot found = null;
                 try
                 {
                     if (copy.Suppressed || !SameDocument(copy, tab.PartDoc)) continue;
@@ -129,16 +136,32 @@ namespace TabSlotAddIn.Core
                         continue;   // the picked copy itself
 
                     FaceProxy face = FindSlotFace(occurrences, tab.PartDoc, centre, MapVector(slot.Normal).Unit());
-                    if (face == null) { Log.Write("Copy " + copy.Name + ": no slot face found (or already cut)"); continue; }
-                    FaceInfo target = FaceInfo.FromSelection(face, p.RunAlongShortEdge, out string error);
-                    if (target == null) { Log.Write("Copy " + copy.Name + ": " + error); continue; }
-
-                    CreateSlot(app, p, target, quads, RoleSlot + (++made + 1));
-                    string file = target.PartDoc.FullDocumentName;
-                    if (!string.Equals(file, p.SlotPartFile, StringComparison.OrdinalIgnoreCase) && !extraFiles.Contains(file)) extraFiles.Add(file);
-                    Log.Write("Copy " + copy.Name + ": slot cut in " + target.DisplayName);
+                    if (face != null) found = new CopySlot { Name = copy.Name, ToTabPart = toTabPart, Move = move, Quads = quads, Face = face };
                 }
                 catch (Exception ex) { Log.Write("Copy " + copy.Name + ": " + ex.Message); }
+                if (found != null) yield return found;
+            }
+        }
+
+        /// <summary>Cuts the slot for every other copy of the tab part, in whichever part each one lands.</summary>
+        private static void CreateSlotsForCopies(Inventor.Application app, AssemblyDocument asm, TabSlotParams p,
+                                                 FaceInfo tab, FaceInfo slot, List<V3[]> slotQuads)
+        {
+            var extraFiles = new List<string>();
+            int made = 0;
+            foreach (CopySlot c in FindCopySlots(app, asm, tab, slot, slotQuads))
+            {
+                try
+                {
+                    FaceInfo target = FaceInfo.FromSelection(c.Face, p.RunAlongShortEdge, out string error);
+                    if (target == null) { Log.Write("Copy " + c.Name + ": " + error); continue; }
+
+                    CreateSlot(app, p, target, c.Quads, RoleSlot + (++made + 1));
+                    string file = target.PartDoc.FullDocumentName;
+                    if (!string.Equals(file, p.SlotPartFile, StringComparison.OrdinalIgnoreCase) && !extraFiles.Contains(file)) extraFiles.Add(file);
+                    Log.Write("Copy " + c.Name + ": slot cut in " + target.DisplayName);
+                }
+                catch (Exception ex) { Log.Write("Copy " + c.Name + ": " + ex.Message); }
             }
             p.ExtraSlotFiles = string.Join("|", extraFiles);
         }

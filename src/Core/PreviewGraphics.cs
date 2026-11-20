@@ -18,7 +18,8 @@ namespace TabSlotAddIn.Core
             _doc = doc;
         }
 
-        public void Show(Plan plan)
+        /// <summary>Shows the plan; <paramref name="copies"/> repeats it at every other copy of the tab part that gets a slot.</summary>
+        public void Show(Plan plan, System.Collections.Generic.IEnumerable<TabSlotBuilder.CopySlot> copies = null)
         {
             Clear();
             if (plan == null || !plan.IsValid) { Refresh(); return; }
@@ -34,22 +35,29 @@ namespace TabSlotAddIn.Core
             Color green = _app.TransientObjects.CreateColor(30, 190, 80, 0.9);
             Color red = _app.TransientObjects.CreateColor(220, 60, 50, 0.55);
 
-            for (int i = 0; i < plan.Tabs.Count; i++)
-            {
-                Footprint t = plan.Tabs[i];
-                AddBlock(tabNode, tg, brep, t.Origin, t.U, t.V, plan.TabDirection, t.Length, t.Width, plan.TabHeight, green);
+            var places = new System.Collections.Generic.List<Matrix[]> { new Matrix[0] };
+            if (copies != null)
+                foreach (TabSlotBuilder.CopySlot c in copies) places.Add(new[] { c.ToTabPart, c.Move });
 
-                Footprint s = plan.SlotFootprint(i);
-                // The slot block always extends along the tab axis; flip its origin when the cut runs against it.
-                V3 origin = s.Origin;
-                if (plan.SlotInto.Dot(plan.TabDirection) < 0) origin = origin - plan.TabDirection * plan.SlotPreviewDepth;
-                AddBlock(slotNode, tg, brep, origin, s.U, s.V, plan.TabDirection, s.Length, s.Width, plan.SlotPreviewDepth, red);
+            foreach (Matrix[] place in places)
+            {
+                for (int i = 0; i < plan.Tabs.Count; i++)
+                {
+                    Footprint t = plan.Tabs[i];
+                    AddBlock(tabNode, tg, brep, t.Origin, t.U, t.V, plan.TabDirection, t.Length, t.Width, plan.TabHeight, green, place);
+
+                    Footprint s = plan.SlotFootprint(i);
+                    // The slot block always extends along the tab axis; flip its origin when the cut runs against it.
+                    V3 origin = s.Origin;
+                    if (plan.SlotInto.Dot(plan.TabDirection) < 0) origin = origin - plan.TabDirection * plan.SlotPreviewDepth;
+                    AddBlock(slotNode, tg, brep, origin, s.U, s.V, plan.TabDirection, s.Length, s.Width, plan.SlotPreviewDepth, red, place);
+                }
             }
             Refresh();
         }
 
         private static void AddBlock(GraphicsNode node, TransientGeometry tg, TransientBRep brep,
-                                     V3 origin, V3 ex, V3 ey, V3 ez, double lx, double ly, double lz, Color color)
+                                     V3 origin, V3 ex, V3 ey, V3 ez, double lx, double ly, double lz, Color color, Matrix[] moves)
         {
             Box box = tg.CreateBox();
             box.MinPoint = tg.CreatePoint(0, 0, 0);
@@ -59,6 +67,7 @@ namespace TabSlotAddIn.Core
             Matrix m = tg.CreateMatrix();
             m.SetCoordinateSystem(origin.ToPoint(tg), ex.ToVector(tg), ey.ToVector(tg), ez.ToVector(tg));
             brep.Transform(body, m);
+            foreach (Matrix move in moves) brep.Transform(body, move);
 
             SurfaceGraphics sg = node.AddSurfaceGraphics(body);
             sg.Color = color;

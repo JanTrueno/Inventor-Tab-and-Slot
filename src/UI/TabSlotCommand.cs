@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using Inventor;
 using TabSlotAddIn.Core;
@@ -25,6 +26,7 @@ namespace TabSlotAddIn.UI
         private InteractionEvents _events;
         private SelectEvents _select;
         private PreviewGraphics _preview;
+        private int _copyCount;   // other copies of the tab part the preview found a slot face for
         private HighlightSet _hiTab, _hiSlot, _hiTabPart, _hiSlotPart;
 
         private FaceProxy _tabProxy, _slotProxy;
@@ -549,7 +551,15 @@ namespace TabSlotAddIn.UI
             _panel.ShowComputedRelief(_p.ReliefFor(_slot.DepthIntoBody()));
             try
             {
-                _preview.Show(_plan);
+                var copies = new List<TabSlotBuilder.CopySlot>();
+                if (_p.AllCopies)
+                {
+                    var slotQuads = new List<V3[]>();
+                    for (int i = 0; i < _plan.Tabs.Count; i++) slotQuads.Add(_plan.SlotFootprint(i).Corners());
+                    copies.AddRange(TabSlotBuilder.FindCopySlots(_app, _doc, _tab, _slot, slotQuads));
+                }
+                _copyCount = copies.Count;
+                _preview.Show(_plan, copies);
             }
             catch (Exception ex)
             {
@@ -560,7 +570,8 @@ namespace TabSlotAddIn.UI
                 return;
             }
             _panel.SetCanCommit(true);
-            _panel.SetStatus((_tab.IsTube ? "Square tube: " + _tab.Strips.Count + " walls. " : "") + $"{_plan.Tabs.Count} tab(s), {_units.Format(_p.TabLength)} long, {_units.Format(_plan.TabHeight)} high.", false);
+            _panel.SetStatus((_tab.IsTube ? "Square tube: " + _tab.Strips.Count + " walls. " : "") + $"{_plan.Tabs.Count} tab(s), {_units.Format(_p.TabLength)} long, {_units.Format(_plan.TabHeight)} high." +
+                (_p.AllCopies ? $" Slots for {_copyCount} other cop{(_copyCount == 1 ? "y" : "ies")} too." : ""), false);
 
             void Fail(string message)
             {
