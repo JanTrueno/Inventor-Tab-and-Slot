@@ -213,6 +213,8 @@ namespace TabSlotAddIn.UI
             ShowRow(_name, true);
         }
 
+        public void HideName() => ShowRow(_name, false);
+
         /// <summary>The name typed in the Name field, or null when it is hidden or empty.</summary>
         public string ReadName()
         {

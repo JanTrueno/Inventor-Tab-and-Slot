@@ -110,7 +110,7 @@ namespace TabSlotAddIn.UI
 
             _panel.PickClicked += OnPickClicked;
             _panel.ParamsChanged += Recompute;
-            _panel.OkClicked += () => { if (Commit()) Finish(true); };
+            _panel.OkClicked += () => { if (Commit()) StartNext(); };
             _panel.CancelClicked += () => Finish(false);
 
             _panel.ClearRequested += OnClearPick;
@@ -129,6 +129,35 @@ namespace TabSlotAddIn.UI
             Recompute();
         }
 
+
+        /// <summary>
+        /// After OK the panel stays open for the next set: same values, a new name, no faces picked. Cancel closes it.
+        /// </summary>
+        private void StartNext()
+        {
+            _editing = false;
+            _original = null;
+            _committed = false;
+            TabSlotParams next = _p.Clone();
+            next.Id = new TabSlotParams().Id;
+            next.Name = TabSlotStore.NextName(_doc);
+            next.ExtraSlotFiles = "";
+            _p = next;
+
+            _preview.Clear();
+            _tab = _slot = null;
+            _tabProxy = _slotProxy = null; _tabPicked = null; _tabNeedsResolve = false;
+            _lengthFittedFor = null;
+            _panel.HideName();
+            _panel.LoadParams(_p);
+            _panel.SetListEnabled(true);
+            DockHost.SetTitle("Tab and Slot");
+            RefreshFaceTexts();
+            AdvanceTarget();
+            RefreshSets();
+            Recompute();
+            try { _app.ActiveView.Update(); } catch { }
+        }
 
         private void OnClearPick(PickTarget which)
         {
